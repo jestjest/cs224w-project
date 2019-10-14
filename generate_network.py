@@ -9,6 +9,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
+import random
 import snap
 import sys
 
@@ -102,15 +103,49 @@ def generate_network(dataset, graph_out):
     FOut.Flush()
 
 
-def visualize_k_random_users(k, graph):
+def get_k_graph_egonet(k, num_sampled, subgraph, graph):
     """
-    @params: [k (int), graph (snap.TUNGraph)]
+    @params: [
+        k (int),
+        num_sampled (int),
+        subgraph (snap.TUNGraph),
+        graph (snap.TUNGraph)
+    ]
+    @returns: k_neighborhood (snap.TUNGraph)
+
+    Takes a subgraph from graph, and returns an egonet graph that contains the
+    node as well as all of its neighbors of a distance k. Selects num_sampled
+    nodes to fanout.
+    """
+    for i in range(k):
+        nodes_arr = {node.GetId() for node in subgraph.Nodes()} #Prevent memory corruption
+        nodes_arr = random.sample(nodes_arr, num_sampled)
+        for graph_node in nodes_arr:
+            graph_node_iter = graph.GetNI(graph_node)
+            for neighbor in graph_node_iter.GetOutEdges():
+                if not subgraph.IsNode(neighbor):
+                    subgraph.AddNode(neighbor)
+                if not subgraph.IsEdge(graph_node, neighbor):
+                    subgraph.AddEdge(graph_node, neighbor)
+    return subgraph
+
+
+def visualize_k_random_users(k, fanout, fanout_samples, graph):
+    """
+    @params: [k (int), fanout_samples (int), graph (snap.TUNGraph)]
     @returns: None
 
     Loads the snap.py graph from graph, and samples k edges from the network to
-    visualize using networkx.
+    visualize using networkx. Samples fanout_samples nodes to fanout, to
+    prevent intractibly large sample graphs.
     """
     sample_graph = snap.GetRndESubGraph(graph, k)
+    sample_graph = get_k_graph_egonet(
+        fanout,
+        fanout_samples,
+        sample_graph,
+        graph
+    )
     snap.PrintInfo(
         sample_graph,
         'Sampled Graph Information',
@@ -153,7 +188,12 @@ def generate_snap_dataset(
     graph = generate_network(dataset, graph_out_path)
 
 
-def analyze_dataset_network(k=1000, graph_in_path='network.graph'):
+def analyze_dataset_network(
+    k=1000,
+    fanout=1,
+    fanout_samples=1,
+    graph_in_path='network.graph'
+):
     """
     @params: [k (int), graph_in_path (str)]
     @returns: None
@@ -167,11 +207,13 @@ def analyze_dataset_network(k=1000, graph_in_path='network.graph'):
     print('Nodes in largest strongly-connected subcomponent: %d' %
         MxScc.GetNodes()
     )
-    visualize_k_random_users(k, graph)
+    visualize_k_random_users(k, fanout, fanout_samples, graph)
 
 
 if __name__ == '__main__':
     """
+    NOTE: This graph implementation assumes undirected edges.
+
     @flags: [
         '--gen [dataset-grouping] [graph_out_path]':
             generate a new graph using the dataset-grouping, and graph_out_path
@@ -188,4 +230,8 @@ if __name__ == '__main__':
             generate_snap_dataset()
     else:
         print("Analyzing existing graph")
-        analyze_dataset_network()
+        analyze_dataset_network(
+            k=1,
+            fanout=10,
+            fanout_samples=1,
+        )
