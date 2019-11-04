@@ -121,14 +121,14 @@ def generate_network(dataset, graph_out):
                     mention_node_id = userid_to_node_map[l_mention[ind_user]]
                 interactions_graph.add_edge(user_node_id, mention_node_id)
 
-    #nx.write_graphml_lxml(interactions_graph, "networkx_grapgh_iran") 
+    
     
     return interactions_graph
 
 
 def generate_snap_dataset(
     dataset_grouping='basic',
-    graph_out_path='network.graph'
+    graph_out_path='network'
 ):
     """
     @params: [graph_out_path (str)]
@@ -138,27 +138,68 @@ def generate_snap_dataset(
     graph_out_path
     """
     dataset = load_datasets(dataset_grouping)
-    graph,user_dict = generate_network(dataset, graph_out_path)
+    graph= generate_network(dataset, graph_out_path)
+    nx.write_gpickle(graph, graph_out_path+".gpickle")
+    
     return graph
 
-g=generate_snap_dataset()
 
-############ Extract features from the graph #############
-feature_extractor = RecursiveFeatureExtractor(g)
-features = feature_extractor.extract_features()
+def get_RolX_feat(graph):
+    """
+    @params: [graph (networkx)]
+    @returns: features vectors (matrix Node*nbr_feat)
 
-print(f'\nFeatures extracted from {feature_extractor.generation_count} recursive generations:')
+    Create the node/features matrix for role assignements and for our GNN
+    """
+    
+    feature_extractor = RecursiveFeatureExtractor(g)
+    features = feature_extractor.extract_features()
+    return features
+    
+def get_RolX_roles(feat):
+    """
+    @params: [feat (pandas)]
+    @returns: roles for each nodes
+
+    Compute roles for every nodes
+    """    
+    role_extractor = RoleExtractor(n_roles=None)
+    role_extractor.extract_role_factors(features)
+    node_roles = role_extractor.roles
+    
+    #################### if you want to have access to what 
+    #################### are the "probabilitis for each class 
+    """
+    print('\nNode role membership by percentage:')
+    print(role_extractor.role_percentage.round(2))
+    """
+    
+    return node_roles
+
+if __name__ == '__main__':
+    """
+    NOTE: we use directed graph and whenever user_b retweet/mention another user_a
+          we put an edge from the one who retweeted (user_b) to the user_a
+
+    @flags: [
+        '--gen [dataset-grouping] [graph_out_path]':
+            generate a new graph using the dataset-grouping, and graph_out_path
+    ]
+    """
+    if len(sys.argv) > 1 and '--gen' in sys.argv:
+        print("Generating a new graph")
+        flag_idx = sys.argv.index('--gen')
+        if len(sys.argv) > 2:
+            dataset_grouping = sys.argv[flag_idx + 1]
+            graph_out_path = sys.argv[flag_idx + 2]
+            g=generate_snap_dataset(dataset_grouping, graph_out_path)
+        else:
+            g=generate_snap_dataset()
+        
+    """
+    features=get_RolX_feat(g)
+    node_roles=get_RolX_roles(g)
+    
+    """
 
 
-##################### Role extractions #################
-role_extractor = RoleExtractor(n_roles=None)
-role_extractor.extract_role_factors(features)
-node_roles = role_extractor.roles
-
-
-#################### if you want to have access to what 
-#################### are the "probabilitis for each class 
-"""
-print('\nNode role membership by percentage:')
-print(role_extractor.role_percentage.round(2))
-"""
