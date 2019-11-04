@@ -10,19 +10,13 @@ Created on Fri Nov  1 09:48:14 2019
 # @Jason Zheng, Guillaume Nervo, Jestin Ma
 #
 import numpy as np
-import math
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import networkx as nx
-from networkx.readwrite import json_graph
 import pandas as pd
 from pprint import pprint
-import random
-#import seaborn as sns
-import snap
 import sys
-import warnings
 
 from graphrole import RecursiveFeatureExtractor, RoleExtractor
 
@@ -154,7 +148,7 @@ def get_RolX_feat(graph):
     features = feature_extractor.extract_features()
     return features
     
-def get_RolX_roles(feat):
+def get_RolX_roles(features):
     """
     @params: [feat (pandas)]
     @returns: roles for each nodes
