@@ -121,8 +121,6 @@ def generate_network(dataset, graph_out):
                     mention_node_id = userid_to_node_map[l_mention[ind_user]]
                 interactions_graph.add_edge(user_node_id, mention_node_id)
 
-    
-    
     return interactions_graph
 
 
