@@ -11,12 +11,12 @@ Created on Fri Nov  1 09:48:14 2019
 #
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 from pprint import pprint
 import sys
+import warnings
 
 from graphrole import RecursiveFeatureExtractor, RoleExtractor
 
@@ -168,30 +168,93 @@ def get_RolX_roles(features):
     
     return node_roles
 
-if __name__ == '__main__':
-    """
-    NOTE: we use directed graph and whenever user_b retweet/mention another user_a
-          we put an edge from the one who retweeted (user_b) to the user_a
 
-    @flags: [
-        '--gen [dataset-grouping] [graph_out_path]':
-            generate a new graph using the dataset-grouping, and graph_out_path
-    ]
+def draw_Rolx(g,node_roles):
     """
-    if len(sys.argv) > 1 and '--gen' in sys.argv:
-        print("Generating a new graph")
-        flag_idx = sys.argv.index('--gen')
-        if len(sys.argv) > 2:
-            dataset_grouping = sys.argv[flag_idx + 1]
-            graph_out_path = sys.argv[flag_idx + 2]
-            g=generate_snap_dataset(dataset_grouping, graph_out_path)
-        else:
-            g=generate_snap_dataset()
-        
-    """
-    features=get_RolX_feat(g)
-    node_roles=get_RolX_roles(g)
+    @params: [role (str), graph (networkx), node_roles (list)]
+    @returns: 
+
+    Draw the whole graph
+    """  
     
+    unique_roles = sorted(set(node_roles.values()))
+    color_map = ["#9d6d00", "#903ee0", "#11dc79", "#f568ff", "#419500", "#013fb0", 
+          "#f2b64c", "#007ae4", "#ff905a", "#33d3e3", "#9e003a", "#019085", 
+          "#950065", "#afc98f", "#ff9bfa", "#83221d", "#01668a", "#ff7c7c", 
+          "#643561", "#75608a"]
+    
+    # map roles to colors
+    role_colors = {role: color_map[i] for i, role in enumerate(unique_roles)}
+    # build list of colors for all nodes in G
+    node_colors = [role_colors[node_roles[node]] for node in list_non_0]
+    
+    plt.figure()
+    
+    with warnings.catch_warnings():
+        # catch matplotlib deprecation warning
+        warnings.simplefilter('ignore')
+        nx.draw(
+            g,
+            pos=nx.spring_layout(g, seed=42),
+            with_labels=True,
+            node_color=node_colors,
+        )
+    
+    return node_roles
+
+def draw_Rolx_per_role(role,g,node_roles):
     """
+    @params: [role (str), graph (networkx), node_roles (list)]
+    @returns: 
+
+    Draw the egonet for nodes belonging to role
+    """  
+    
+    unique_roles = sorted(set(node_roles.values()))
+    color_map = ["#9d6d00", "#903ee0", "#11dc79", "#f568ff", "#419500", "#013fb0", 
+          "#f2b64c", "#007ae4", "#ff905a", "#33d3e3", "#9e003a", "#019085", 
+          "#950065", "#afc98f", "#ff9bfa", "#83221d", "#01668a", "#ff7c7c", 
+          "#643561", "#75608a"]
+    
+    list_node_role=[]
+    for i in node_roles.keys():
+        if(node_roles[i]==role):
+            list_node_role+=[i]
+    
+    #create subgraph with only non role 0
+    sub_g=nx.DiGraph()
+    sub_g.add_nodes_from(list_node_role)
+    
+    for edge in g.edges():
+        if(sub_g.has_node(edge[0]) and sub_g.has_node(edge[1])):
+            sub_g.add_edge(edge[0],edge[1])
+    
+    
+    
+    # map roles to colors
+    role_colors = {role: color_map[i] for i, role in enumerate(unique_roles)}
+    # build list of colors for all nodes in G
+    node_colors = [role_colors[node_roles[node]] for node in list_node_role]
+    
+    plt.figure()
+    
+    with warnings.catch_warnings():
+        # catch matplotlib deprecation warning
+        warnings.simplefilter('ignore')
+        nx.draw(
+            sub_g,
+            nodelist=list_node_role,
+            pos=nx.spring_layout(sub_g, seed=42),
+            with_labels=True,
+            node_color=node_colors,
+        )
+    
+    return node_roles
 
 
+g=nx.read_gpickle("network.gpickle")
+#g=generate_snap_dataset()
+features=get_RolX_feat(g)
+node_roles=get_RolX_roles(features)
+
+draw_Rolx_per_role('role_2',g,node_roles)
