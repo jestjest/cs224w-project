@@ -14,18 +14,19 @@ import snap
 import sys
 
 DATASETS = {
-    'basic': [
+    'bad actors': [
         'ira_tweets_csv_hashed.csv',
     ],
-}
-INTERACTIONS = {
-    'retweet': 'retweet_userid',
-    'reply': 'in_reply_to_userid',
-    'mention': 'user_mentions',
+    'benign': [
+        'json/democratic_party_timelines',
+        'json/republican_party_timelines',
+    ]
 }
 
-
-def load_datasets(dataset_grouping):
+# ==============================================================================
+# Dataset code
+# ==============================================================================
+def load_datasets():
     """
     @params: [dataset_grouping (str)]
     @returns: (Pandas Dataframe)
@@ -34,15 +35,75 @@ def load_datasets(dataset_grouping):
     concatenates these to a single pandas dataframe. Returns the dataframe.
     """
     li = []
-    for dataset in DATASETS[dataset_grouping]:
+    for dataset in DATASETS['bad actors']:
         path = './datasets/%s' % dataset
+        print('Reading data from %s' % path)
         df = pd.read_csv(path)
+        df = format_csv_df(df)
         li.append(df)
     return pd.concat(li, axis=0, ignore_index=True)
 
 
+def load_json():
+    """
+    @params: []
+    @returns: (Pandas Dataframe)
+
+    Reads all json's from dataset_grouping's input partition in DATASETS, and
+    concatenates these to a single pandas dataframe. Returns the dataframe.
+    """
+    li = []
+    for dataset in DATASETS['benign']:
+        path = './datasets/%s' % dataset
+        print('Reading data from %s' % path)
+        df = pd.read_json(path, lines=True)
+        df = convert_to_csv_df(df)
+        li.append(df)
+    return pd.concat(li, axis=0, ignore_index=True)
+
+
+def format_csv_df(df):
+    """
+    @params: [df (Pandas Dataframe)]
+    @returns: [df (Pandas Dataframe)]
+
+    Selects the relevant fields from csv derived tweet dataframe
+    """
+    converted_struct = {
+        'userid': df['userid'],
+        'in_reply_to_userid': df['in_reply_to_userid'],
+        'user_mentions': df['user_mentions'],
+        'full_text': df['tweet_text'],
+    }
+    return pd.DataFrame(converted_struct)
+
+
+def convert_to_csv_df(df):
+    """
+    @params: [df (Pandas Dataframe)]
+    @returns: [df (Pandas Dataframe)]
+
+    Converts the json structured tweet dataframe to match the CSV bad actors
+    dataframe structure
+    """
+    user_ids = [user.get('id') for user in df['user']]
+    user_mentions = [entity.get('user_mentions') for entity in df['entities']]
+
+    converted_struct = {
+        'userid': user_ids,
+        'in_reply_to_userid': df['in_reply_to_user_id'],
+        'user_mentions': user_mentions,
+        'full_text': df['full_text'],
+    }
+    return pd.DataFrame(converted_struct)
+
+
+# ==============================================================================
+# Snap.py network generation code
+# ==============================================================================
 def generate_network(dataset, graph_out):
     """
+    OUTDATED
     @params: [dataset (Pandas Dataframe), graph_out (str)]
     @returns: None
 
@@ -56,9 +117,8 @@ def generate_network(dataset, graph_out):
     for row in dataset.iterrows():
         data = row[1]
         userid = data['userid']
-        retweet_id = data[INTERACTIONS['retweet']]
-        reply_id = data[INTERACTIONS['reply']]
-        mention_id = data[INTERACTIONS['mention']]
+        reply_id = data['in_reply_to_userid']
+        mention_id = data['user_mentions']
 
         if userid not in userid_to_node_map:
             user_node_id = i
@@ -67,16 +127,6 @@ def generate_network(dataset, graph_out):
             i += 1
         else:
             user_node_id = userid_to_node_map[userid]
-
-        if retweet_id == retweet_id:
-            if retweet_id not in userid_to_node_map:
-                retweet_node_id = i
-                userid_to_node_map[retweet_id] = i
-                interactions_graph.AddNode(retweet_node_id)
-                i += 1
-            else:
-                retweet_node_id = userid_to_node_map[retweet_id]
-            interactions_graph.AddEdge(user_node_id, retweet_node_id)
 
         if reply_id == 'nan':
             if reply_id not in userid_to_node_map:
@@ -105,6 +155,7 @@ def generate_network(dataset, graph_out):
 
 def get_k_graph_egonet(k, num_sampled, subgraph, graph):
     """
+    OUTDATED
     @params: [
         k (int),
         num_sampled (int),
@@ -129,9 +180,12 @@ def get_k_graph_egonet(k, num_sampled, subgraph, graph):
                     subgraph.AddEdge(graph_node, neighbor)
     return subgraph
 
-
+# ==============================================================================
+# Networkx Visualization Code
+# ==============================================================================
 def visualize_k_random_users(k, fanout, fanout_samples, graph):
     """
+    OUTDATED
     @params: [k (int), fanout_samples (int), graph (snap.TUNGraph)]
     @returns: None
 
@@ -173,26 +227,11 @@ def visualize_k_random_users(k, fanout, fanout_samples, graph):
     plt.show()
 
 
-def generate_snap_dataset(
-    dataset_grouping='basic',
-    graph_out_path='network.graph'
-):
-    """
-    @params: [graph_out_path (str)]
-    @returns: None
-
-    Loads datasets specified in macros, and writes a user-connection graph to
-    graph_out_path
-    """
-    dataset = load_datasets(dataset_grouping)
-    graph = generate_network(dataset, graph_out_path)
-
-
 def analyze_dataset_network(
     k=1000,
     fanout=1,
     fanout_samples=1,
-    graph_in_path='network.graph'
+    graph_in_path='bad_actors.graph'
 ):
     """
     @params: [k (int), graph_in_path (str)]
@@ -209,29 +248,55 @@ def analyze_dataset_network(
     )
     visualize_k_random_users(k, fanout, fanout_samples, graph)
 
+# ==============================================================================
+# Controller code
+# ==============================================================================
+def generate_snap_dataset(
+    generate_network_flag=False
+):
+    """
+    @params: [graph_out_path (str)]
+    @returns: benign_dataset, bad_dataset
+
+    Loads datasets specified in macros, and writes a user-connection graph to
+    graph_out_path
+    """
+    for grouping in DATASETS:
+        if grouping == 'benign':
+            benign_dataset = load_json()
+        else:
+            bad_dataset = load_datasets()
+    if generate_network_flag:
+        print('Generating graph networks')
+        bad_actor_graph = generate_network(bad_dataset, 'bad_actors.graph')
+        benign_graph = generate_network(benign_dataset, 'benign.graph')
+    return benign_dataset, bad_dataset
+
 
 if __name__ == '__main__':
     """
     NOTE: This graph implementation assumes undirected edges.
 
     @flags: [
-        '--gen [dataset-grouping] [graph_out_path]':
-            generate a new graph using the dataset-grouping, and graph_out_path
+        '--gen':
+            generate a new graph in addition to creating the datasets
+        '--analyze'
+            analyze a graph
     ]
     """
     if len(sys.argv) > 1 and '--gen' in sys.argv:
-        print("Generating a new graph")
-        flag_idx = sys.argv.index('--gen')
-        if len(sys.argv) > 2:
-            dataset_grouping = sys.argv[flag_idx + 1]
-            graph_out_path = sys.argv[flag_idx + 2]
-            generate_snap_dataset(dataset_grouping, graph_out_path)
-        else:
-            generate_snap_dataset()
+        print("Generating new graphs")
+        benign, bad = generate_snap_dataset(generate_network_flag=True)
     else:
+        print('Creating datasets without graphs')
+        benign, bad = generate_snap_dataset(generate_network_flag=False)
+    benign.to_csv('./datasets/compiled/benign_actors.csv', encoding='utf-8', index=False)
+    bad.to_csv('./datasets/compiled/bad_actors.csv', encoding='utf-8', index=False)
+
+    if len(sys.argv) > 1 and '--analyze' in sys.argv:
         print("Analyzing existing graph")
         analyze_dataset_network(
-            k=1,
-            fanout=10,
-            fanout_samples=1,
+            k=100,
+            fanout=1,
+            fanout_samples=0,
         )
