@@ -87,8 +87,10 @@ def convert_to_csv_df(df):
     dataframe structure
     """
     user_ids = [user.get('id') for user in df['user']]
-    user_mentions = [entity.get('user_mentions') for entity in df['entities']]
-
+    user_mentions = list()
+    for entity in df['entities']:
+        tweet_mentions = [mention['id'] for mention in entity.get('user_mentions')]
+        user_mentions.append(tweet_mentions)
     converted_struct = {
         'userid': user_ids,
         'in_reply_to_userid': df['in_reply_to_user_id'],
@@ -118,6 +120,8 @@ def generate_network(dataset, graph_out):
         data = row[1]
         userid = data['userid']
         reply_id = data['in_reply_to_userid']
+        if graph_out == 'benign.graph' and reply_id == reply_id: #hack for detecting obfuscated id's
+            reply_id = int(reply_id)
         mention_id = data['user_mentions']
 
         if userid not in userid_to_node_map:
@@ -128,7 +132,7 @@ def generate_network(dataset, graph_out):
         else:
             user_node_id = userid_to_node_map[userid]
 
-        if reply_id == 'nan':
+        if reply_id == reply_id:
             if reply_id not in userid_to_node_map:
                 reply_node_id = i
                 userid_to_node_map[reply_id] = i
@@ -138,7 +142,7 @@ def generate_network(dataset, graph_out):
                 reply_node_id = userid_to_node_map[reply_id]
             interactions_graph.AddEdge(user_node_id, reply_node_id)
 
-        if mention_id == 'nan':
+        if mention_id == reply_id:
             if mention_id not in userid_to_node_map:
                 mention_node_id = i
                 userid_to_node_map[mention_id] = i
@@ -287,16 +291,15 @@ if __name__ == '__main__':
     if len(sys.argv) > 1 and '--gen' in sys.argv:
         print("Generating new graphs")
         benign, bad = generate_snap_dataset(generate_network_flag=True)
-    else:
-        print('Creating datasets without graphs')
-        benign, bad = generate_snap_dataset(generate_network_flag=False)
-    benign.to_csv('./datasets/compiled/benign_actors.csv', encoding='utf-8', index=False)
-    bad.to_csv('./datasets/compiled/bad_actors.csv', encoding='utf-8', index=False)
-
-    if len(sys.argv) > 1 and '--analyze' in sys.argv:
+    elif len(sys.argv) > 1 and '--analyze' in sys.argv:
         print("Analyzing existing graph")
         analyze_dataset_network(
             k=100,
             fanout=1,
             fanout_samples=0,
         )
+    else:
+        print('Creating datasets without graphs')
+        benign, bad = generate_snap_dataset(generate_network_flag=False)
+    benign.to_csv('./datasets/compiled/benign_actors.csv', encoding='utf-8', index=False)
+    bad.to_csv('./datasets/compiled/bad_actors.csv', encoding='utf-8', index=False)
