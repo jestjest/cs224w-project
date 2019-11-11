@@ -26,9 +26,19 @@ DATASETS = {
 # Where processed datasets will be located.
 PROCESSED_DATA_DIR = './datasets/compiled'
 
+
 # ==============================================================================
-# Dataset code
+# Utilities parsing and processing dataframe values
 # ==============================================================================
+
+def pd_float_to_int(float_or_nan):
+    """
+    @params [float, possibly nan]
+    @return [integer, never nan]
+
+    Casts the float as an integer, or 0 if it's nan.
+    """
+    return 0 if pd.isnull(float_or_nan) else int(float_or_nan)
 
 def pd_str_to_list(str_or_nan):
     """
@@ -54,6 +64,10 @@ def reformat_datetime(datetime_str, out_format):
     parsed_datetime = datetime.datetime.strptime(datetime_str, in_format)
     return datetime.datetime.strftime(parsed_datetime, out_format)
 
+
+# ==============================================================================
+# Dataset code
+# ==============================================================================
 
 def load_datasets():
     """
@@ -107,12 +121,12 @@ def format_csv_df(df):
 
         'tweet_time': df['tweet_time'],
         'full_text': df['tweet_text'],
-        'like_count': pd.to_numeric(df['like_count'], downcast='integer'),
+        'like_count': df['like_count'].apply(pd_float_to_int),
         'user_mentions': df['user_mentions'].apply(pd_str_to_list),
         'in_reply_to_userid': df['in_reply_to_userid'],     # NaN if not a reply.
 
         'is_retweeted': df['is_retweet'],
-        'retweet_count': pd.to_numeric(df['retweet_count'], downcast='integer'),
+        'retweet_count': df['retweet_count'].apply(pd_float_to_int),
         'retweet_of': df['retweet_userid']      # NaN if not a retweet.
     }
     return pd.DataFrame(converted_struct)

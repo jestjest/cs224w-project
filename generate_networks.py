@@ -3,7 +3,10 @@
 # CS224W Fall 2019-2020
 # @Jason Zheng, Guillaume Nervo, Jestin Ma
 #
+
 import argparse
+import datetime
+from datetime import timezone
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -15,6 +18,7 @@ import pathlib
 import random
 import snap
 import sys
+
 import dataset_utils
 
 # Where graphs will be located.
@@ -24,6 +28,47 @@ PROCESSED_GRAPHS_DIR = './graphs'
 # ==============================================================================
 # Snap.py network generation code
 # ==============================================================================
+
+def datetime_str_to_unix(datetime_str, str_format):
+    """
+    @params: [UTC datetime string with the format str_format]
+    @returns: integer representing the datetime in unix time
+
+    Returns the unix time representation of a given UTC datetime string.
+    """
+    dt = datetime.datetime.strptime(datetime_str, str_format)
+    return dt.replace(tzinfo=timezone.utc).timestamp()
+
+
+def add_node_and_features(graph, user_node_id, data):
+    """
+    @params: [
+        graph (snap TNEANet graph object),
+        user_node_id (int),
+        data (a dictionary-like row of data),
+    ]
+    @returns: None
+
+    Adds a node with the given ID to the graph along with several node-level attributes.
+    """
+    graph.AddNode(user_node_id)
+
+    unix_time = datetime_str_to_unix(data['account_creation_date'], '%Y-%m-%d')
+    graph.AddIntAttrDatN(user_node_id, unix_time, 'account_creation_unix_time')
+    graph.AddIntAttrDatN(user_node_id, data['followers_count'], 'followers_count')
+    graph.AddIntAttrDatN(user_node_id, data['following_count'], 'following_count')
+
+
+def add_edge_and_features(graph, start_id, end_id, data):
+    edge_id = graph.AddEdge(start_id, end_id)
+
+    tweet_unix_time = datetime_str_to_unix(data['tweet_time'], '%Y-%m-%d %H:%M')
+    graph.AddIntAttrDatE(edge_id, tweet_unix_time, 'tweet_unix_time')
+    graph.AddStrAttrDatE(edge_id, data['full_text'], 'tweet_text')
+    graph.AddIntAttrDatE(edge_id, data['like_count'], 'like_count')
+    graph.AddIntAttrDatE(edge_id, data['retweet_count'], 'retweet_count')
+
+
 def generate_graphs(dataset_name):
     """
     @params: [dataset_path (csv path of a Pandas dataframe)]
@@ -35,12 +80,24 @@ def generate_graphs(dataset_name):
     """
 
     dataset = dataset_utils.load_dataset(dataset_name)
+    num_rows = len(dataset.index)
+    print("Generating graphs for %s, total rows %s" % (dataset_name, num_rows))
 
-    print("Generating graphs for %s, total rows %s" % (dataset_name, len(dataset.index)))
+    mentions_graph = snap.TNEANet.New()
+    reply_graph = snap.TNEANet.New()
+    retweet_graph = snap.TNEANet.New()
+    all_graphs = ((mentions_graph, 'mentions'), (reply_graph, 'reply'), (retweet_graph, 'retweet'))
 
-    mentions_graph = snap.TNGraph.New()
-    reply_graph = snap.TNGraph.New()
-    retweet_graph = snap.TNGraph.New()
+    # Declare per-node and per-edge attributes.
+    for graph, _ in all_graphs:
+        graph.AddIntAttrN("followers_count")
+        graph.AddIntAttrN("following_count")
+        graph.AddIntAttrN("account_creation_unix_time")
+
+        graph.AddIntAttrE("tweet_unix_time")
+        graph.AddStrAttrE("tweet_text")
+        graph.AddIntAttrE("like_count")
+        graph.AddIntAttrE("retweet_count")
 
     userid_to_node_map = dict()
     i = 0
@@ -53,9 +110,8 @@ def generate_graphs(dataset_name):
         if userid not in userid_to_node_map:
             user_node_id = i
             userid_to_node_map[userid] = i
-            mentions_graph.AddNode(user_node_id)
-            reply_graph.AddNode(user_node_id)
-            retweet_graph.AddNode(user_node_id)
+            for graph, _ in all_graphs:
+                add_node_and_features(graph, user_node_id, data)
             i += 1
         else:
             user_node_id = userid_to_node_map[userid]
@@ -65,44 +121,43 @@ def generate_graphs(dataset_name):
             if reply_id not in userid_to_node_map:
                 reply_node_id = i
                 userid_to_node_map[reply_id] = i
-                mentions_graph.AddNode(reply_node_id)
-                reply_graph.AddNode(reply_node_id)
-                retweet_graph.AddNode(reply_node_id)
+                for graph, _ in all_graphs:
+                    add_node_and_features(graph, reply_node_id, data)
                 i += 1
             else:
                 reply_node_id = userid_to_node_map[reply_id]
-            reply_graph.AddEdge(user_node_id, reply_node_id)
+
+            add_edge_and_features(reply_graph, user_node_id, reply_node_id, data)
 
         if retweet_id == retweet_id:
             if retweet_id not in userid_to_node_map:
                 retweet_node_id = i
                 userid_to_node_map[retweet_id] = i
-                mentions_graph.AddNode(retweet_node_id)
-                reply_graph.AddNode(retweet_node_id)
-                retweet_graph.AddNode(retweet_node_id)
+                for graph, _ in all_graphs:
+                    add_node_and_features(graph, retweet_node_id, data)
                 i += 1
             else:
                 retweet_node_id = userid_to_node_map[retweet_id]
-            retweet_graph.AddEdge(user_node_id, retweet_node_id)
+
+            add_edge_and_features(retweet_graph, user_node_id, retweet_node_id, data)
 
         if data['user_mentions'] == data['user_mentions']:
             for mention_id in data['user_mentions']:
                 if mention_id not in userid_to_node_map:
                     mention_node_id = i
                     userid_to_node_map[mention_id] = i
-                    mentions_graph.AddNode(mention_node_id)
-                    reply_graph.AddNode(mention_node_id)
-                    retweet_graph.AddNode(mention_node_id)
+                    for graph, _ in all_graphs:
+                        add_node_and_features(graph, mention_node_id, data)
                     i += 1
                 else:
                     mention_node_id = userid_to_node_map[mention_id]
-                mentions_graph.AddEdge(user_node_id, mention_node_id)
+                add_edge_and_features(mentions_graph, user_node_id, mention_node_id, data)
 
         if row[0] % 10000 == 0:
-            print('Processed %s rows so far' % (row[0] + 1))
+            print('Processed %s/%s rows' % (row[0] + 1, num_rows))
 
-    # Remove extraneous, isolated nodes.
-    for graph in (mentions_graph, reply_graph, retweet_graph):
+    for graph, name in all_graphs:
+        # Remove unneeded isolated nodes.
         node_iter = graph.BegNI()
         while node_iter < graph.EndNI():
             if node_iter.GetInDeg() == 0 and node_iter.GetOutDeg() == 0:
@@ -110,20 +165,11 @@ def generate_graphs(dataset_name):
 
             node_iter.Next()
 
-    path = os.path.join(PROCESSED_GRAPHS_DIR, '%s-mentions.graph' % dataset_name)
-    fout = snap.TFOut(path)
-    mentions_graph.Save(fout)
-    fout.Flush()
-
-    path = os.path.join(PROCESSED_GRAPHS_DIR, '%s-reply.graph' % dataset_name)
-    fout = snap.TFOut(path)
-    reply_graph.Save(fout)
-    fout.Flush()
-
-    path = os.path.join(PROCESSED_GRAPHS_DIR, '%s-retweet.graph' % dataset_name)
-    fout = snap.TFOut(path)
-    retweet_graph.Save(fout)
-    fout.Flush()
+        # Now save the graph.
+        path = os.path.join(PROCESSED_GRAPHS_DIR, '%s-%s.graph' % (dataset_name, name))
+        fout = snap.TFOut(path)
+        mentions_graph.Save(fout)
+        fout.Flush()
 
 
 def get_k_graph_egonet(k, num_sampled, subgraph, graph):
