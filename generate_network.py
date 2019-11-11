@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 #
 # CS224W Fall 2019-2020
 # @Jason Zheng, Guillaume Nervo, Jestin Ma
@@ -8,20 +9,29 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import networkx as nx
+import os
 import pandas as pd
+import pathlib
 import random
 import snap
 import sys
 
+
+# Where files listed in DATASETS are located.
+DATASET_DIR = '/shared/data'
+
 DATASETS = {
     'bad actors': [
-        'ira_tweets_csv_hashed.csv',
+        'iran_201906_1_tweets_csv_hashed.csv',
     ],
     'benign': [
         'json/democratic_party_timelines',
         'json/republican_party_timelines',
     ]
 }
+
+# Where processed datasets will be located.
+PROCESSED_DATA_DIR = './datasets/compiled'
 
 # ==============================================================================
 # Dataset code
@@ -36,7 +46,7 @@ def load_datasets():
     """
     li = []
     for dataset in DATASETS['bad actors']:
-        path = './datasets/%s' % dataset
+        path = os.path.join(DATASET_DIR, dataset)
         print('Reading data from %s' % path)
         df = pd.read_csv(path)
         df = format_csv_df(df)
@@ -54,7 +64,7 @@ def load_json():
     """
     li = []
     for dataset in DATASETS['benign']:
-        path = './datasets/%s' % dataset
+        path = os.path.join(DATASET_DIR, dataset)
         print('Reading data from %s' % path)
         df = pd.read_json(path, lines=True)
         df = convert_to_csv_df(df)
@@ -293,8 +303,6 @@ if __name__ == '__main__':
     if len(sys.argv) > 1 and '--gen' in sys.argv:
         print("Generating new graphs")
         benign, bad = generate_snap_dataset(generate_network_flag=True)
-        benign.to_csv('./datasets/compiled/benign_actors.csv', encoding='utf-8', index=False)
-        bad.to_csv('./datasets/compiled/bad_actors.csv', encoding='utf-8', index=False)
     elif len(sys.argv) > 1 and '--analyze' in sys.argv:
         print("Analyzing existing graph")
         analyze_dataset_network(
@@ -308,5 +316,8 @@ if __name__ == '__main__':
     else:
         print('Creating datasets without graphs')
         benign, bad = generate_snap_dataset(generate_network_flag=False)
-        benign.to_csv('./datasets/compiled/benign_actors.csv', encoding='utf-8', index=False)
-        bad.to_csv('./datasets/compiled/bad_actors.csv', encoding='utf-8', index=False)
+    pathlib.Path(PROCESSED_DATA_DIR).mkdir(parents=True, exist_ok=True)
+    benign.to_csv(
+        os.path.join(PROCESSED_DATA_DIR, 'benign_actors.csv'), encoding='utf-8', index=False)
+    bad.to_csv(
+        os.path.join(PROCESSED_DATA_DIR, 'bad_actors.csv'), encoding='utf-8', index=False)
