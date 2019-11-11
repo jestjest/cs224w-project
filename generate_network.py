@@ -94,7 +94,6 @@ def format_csv_df(df):
 
     Selects the relevant fields from csv derived tweet dataframe
     """
-
     converted_struct = {
         'userid': df['userid'],
         'followers_count': df['follower_count'],
@@ -109,6 +108,7 @@ def format_csv_df(df):
 
         'is_retweeted': df['is_retweet'],
         'retweet_count': df['retweet_count'],
+        'retweet_of': df['retweet_userid']
     }
     return pd.DataFrame(converted_struct)
 
@@ -122,6 +122,8 @@ def convert_to_csv_df(df):
     dataframe structure
     """
     out_format = "%Y-%m-%d"
+    # print(df['retweeted_status'])
+    # print(df['retweeted_status']['user'].get('id'))
 
     user_metadata = [(
         user.get('id'),
@@ -136,6 +138,13 @@ def convert_to_csv_df(df):
     for entity in df['entities']:
         tweet_mentions = [mention['id'] for mention in entity.get('user_mentions')]
         user_mentions.append(tweet_mentions)
+
+    retweet_status = list()
+    for status in df['retweeted_status']:
+        if status == status:
+            retweet_status.append(status['user'].get('id'))
+        else:
+            retweet_status.append(None)
 
     converted_struct = {
         'userid': unzipped_user_metadata[0],
@@ -152,6 +161,7 @@ def convert_to_csv_df(df):
         # Existence of this attribute determines whether a tweet is a retweet.
         'is_retweeted': pd.isnull(df['retweeted_status']),
         'retweet_count': df['retweet_count'],
+        'retweet_of': retweet_status        # None if no retweet
     }
 
     return pd.DataFrame(converted_struct)
@@ -177,8 +187,10 @@ def generate_network(dataset, graph_out):
         data = row[1]
         userid = data['userid']
         reply_id = data['in_reply_to_userid']
+        retweet_id = data['retweet_of']
         if graph_out == 'benign.graph' and reply_id == reply_id: #hack for detecting obfuscated id's
             reply_id = int(reply_id)
+            retweet_id = int(retweet_id)
 
         if userid not in userid_to_node_map:
             user_node_id = i
@@ -197,6 +209,16 @@ def generate_network(dataset, graph_out):
             else:
                 reply_node_id = userid_to_node_map[reply_id]
             interactions_graph.AddEdge(user_node_id, reply_node_id)
+
+        if retweet_id and retweet_id == retweet_id:
+            if retweet_id not in userid_to_node_map:
+                retweet_node_id = i
+                userid_to_node_map[retweet_id] = i
+                interactions_graph.AddNode(retweet_node_id)
+                i += 1
+            else:
+                retweet_node_id = userid_to_node_map[retweet_id]
+            interactions_graph.AddEdge(user_node_id, retweet_node_id)
 
         if data['user_mentions'] == data['user_mentions']:
             for mention_id in data['user_mentions']:
@@ -293,7 +315,6 @@ def analyze_dataset_network(
     fanout=1,
     fanout_samples=1,
     graph_in_path='bad_actors.graph'
-    # graph_in_path='benign.graph'
 ):
     """
     @params: [k (int), graph_in_path (str)]
@@ -355,9 +376,6 @@ if __name__ == '__main__':
             k=5,
             fanout=2,
             fanout_samples=3,
-            # k=100,
-            # fanout=8,
-            # fanout_samples=5,
         )
     else:
         print('Creating datasets without graphs')
