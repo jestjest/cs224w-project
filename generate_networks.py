@@ -101,6 +101,15 @@ def generate_graphs(dataset_name):
         if row[0] % 10000 == 0:
             print('Processed %s rows so far' % (row[0] + 1))
 
+    # Remove extraneous, isolated nodes.
+    for graph in (mentions_graph, reply_graph, retweet_graph):
+        node_iter = graph.BegNI()
+        while node_iter < graph.EndNI():
+            if node_iter.GetInDeg() == 0 and node_iter.GetOutDeg() == 0:
+                graph.DelNode(node_iter.GetId())
+
+            node_iter.Next()
+
     path = os.path.join(PROCESSED_GRAPHS_DIR, '%s-mentions.graph' % dataset_name)
     fout = snap.TFOut(path)
     mentions_graph.Save(fout)
