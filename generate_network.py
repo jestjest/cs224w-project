@@ -3,6 +3,7 @@
 # CS224W Fall 2019-2020
 # @Jason Zheng, Guillaume Nervo, Jestin Ma
 #
+import datetime as datetime
 import numpy as np
 import math
 import matplotlib
@@ -36,6 +37,20 @@ PROCESSED_DATA_DIR = './datasets/compiled'
 # ==============================================================================
 # Dataset code
 # ==============================================================================
+
+def reformat_datetime(datetime_str, out_format):
+    """
+    @params [a UTC datetime string with a specific format (see below)]
+    @returns: [a date string in the format of out_format]
+
+    Reformats a UTC datetime string returned by the Twitter API for compatibility.
+    """
+
+    in_format = "%a %b %d %H:%M:%S %z %Y"
+    parsed_datetime = datetime.datetime.strptime(datetime_str, in_format)
+    return datetime.datetime.strftime(parsed_datetime, out_format)
+
+
 def load_datasets():
     """
     @params: [dataset_grouping (str)]
@@ -79,12 +94,21 @@ def format_csv_df(df):
 
     Selects the relevant fields from csv derived tweet dataframe
     """
-    print(df['user_mentions'])
+
     converted_struct = {
         'userid': df['userid'],
-        'in_reply_to_userid': df['in_reply_to_userid'],
-        'user_mentions': df['user_mentions'],
+        'followers_count': df['follower_count'],
+        'following_count': df['following_count'],
+        'account_creation_date': df['account_creation_date'],    # Format: YYYY-MM-DD
+
+        'tweet_time': df['tweet_time'],
         'full_text': df['tweet_text'],
+        'like_count': df['like_count'],
+        'user_mentions': df['user_mentions'],
+        'in_reply_to_userid': df['in_reply_to_userid'],     # NaN if not a reply.
+
+        'is_retweeted': df['is_retweet'],
+        'retweet_count': df['retweet_count'],
     }
     return pd.DataFrame(converted_struct)
 
@@ -97,17 +121,39 @@ def convert_to_csv_df(df):
     Converts the json structured tweet dataframe to match the CSV bad actors
     dataframe structure
     """
-    user_ids = [user.get('id') for user in df['user']]
+    out_format = "%Y-%m-%d"
+
+    user_metadata = [(
+        user.get('id'),
+        user.get('followers_count'),
+        user.get('friends_count'),
+        reformat_datetime(user.get('created_at'), "%Y-%m-%d"))
+        for user in df['user']]
+
+    unzipped_user_metadata = list(zip(*user_metadata))
+    # A list where the Nth item is a list of user mention in the Nth tweet.
     user_mentions = list()
     for entity in df['entities']:
         tweet_mentions = [mention['id'] for mention in entity.get('user_mentions')]
         user_mentions.append(tweet_mentions)
+
     converted_struct = {
-        'userid': user_ids,
-        'in_reply_to_userid': df['in_reply_to_user_id'],
-        'user_mentions': user_mentions,
+        'userid': unzipped_user_metadata[0],
+        'followers_count': unzipped_user_metadata[1],
+        'following_count': unzipped_user_metadata[2],
+        'account_creation_date': unzipped_user_metadata[3],
+
+        'tweet_time': df['created_at'].dt.strftime("%Y-%m-%d %H:%M"),
         'full_text': df['full_text'],
+        'like_count': df['favorite_count'],
+        'user_mentions': user_mentions,
+        'in_reply_to_userid': df['in_reply_to_user_id'],        # NaN if not a reply.
+
+        # Existence of this attribute determines whether a tweet is a retweet.
+        'is_retweeted': pd.isnull(df['retweeted_status']),
+        'retweet_count': df['retweet_count'],
     }
+
     return pd.DataFrame(converted_struct)
 
 
@@ -284,8 +330,8 @@ def generate_snap_dataset(
             bad_dataset = load_datasets()
     if generate_network_flag:
         print('Generating graph networks')
-        bad_actor_graph = generate_network(bad_dataset, 'bad_actors.graph')
-        benign_graph = generate_network(benign_dataset, 'benign.graph')
+        generate_network(bad_dataset, 'bad_actors.graph')
+        generate_network(benign_dataset, 'benign.graph')
     return benign_dataset, bad_dataset
 
 
