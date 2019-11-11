@@ -40,7 +40,7 @@ def datetime_str_to_unix(datetime_str, str_format):
     return dt.replace(tzinfo=timezone.utc).timestamp()
 
 
-def add_node_and_features(graph, user_node_id, data):
+def add_node_features(graph, user_node_id, data):
     """
     @params: [
         graph (snap TNEANet graph object),
@@ -49,10 +49,8 @@ def add_node_and_features(graph, user_node_id, data):
     ]
     @returns: None
 
-    Adds a node with the given ID to the graph along with several node-level attributes.
+    Adds several node-level attributes to a node in a grpah.
     """
-    graph.AddNode(user_node_id)
-
     unix_time = datetime_str_to_unix(data['account_creation_date'], '%Y-%m-%d')
     graph.AddIntAttrDatN(user_node_id, unix_time, 'account_creation_unix_time')
     graph.AddIntAttrDatN(user_node_id, data['followers_count'], 'followers_count')
@@ -111,10 +109,18 @@ def generate_graphs(dataset_name):
             user_node_id = i
             userid_to_node_map[userid] = i
             for graph, _ in all_graphs:
-                add_node_and_features(graph, user_node_id, data)
+                graph.AddNode(user_node_id)
             i += 1
         else:
             user_node_id = userid_to_node_map[userid]
+
+        # NOTE: if a node appears multiple times (multiple tweets),
+        # the final set of node features is the set indicated by the final tweet.
+        #
+        # Moreover, it's not guaranteed all nodes have features; a node could
+        # be the source of a reply/retweet or the target of a mention, but not
+        # have any tweets of their own.
+        add_node_features(graph, user_node_id, data)
 
         # Equality checks whether it is NaN or not.
         if reply_id == reply_id:
@@ -122,7 +128,7 @@ def generate_graphs(dataset_name):
                 reply_node_id = i
                 userid_to_node_map[reply_id] = i
                 for graph, _ in all_graphs:
-                    add_node_and_features(graph, reply_node_id, data)
+                    graph.AddNode(reply_node_id)
                 i += 1
             else:
                 reply_node_id = userid_to_node_map[reply_id]
@@ -134,7 +140,7 @@ def generate_graphs(dataset_name):
                 retweet_node_id = i
                 userid_to_node_map[retweet_id] = i
                 for graph, _ in all_graphs:
-                    add_node_and_features(graph, retweet_node_id, data)
+                    graph.AddNode(retweet_node_id)
                 i += 1
             else:
                 retweet_node_id = userid_to_node_map[retweet_id]
@@ -147,7 +153,7 @@ def generate_graphs(dataset_name):
                     mention_node_id = i
                     userid_to_node_map[mention_id] = i
                     for graph, _ in all_graphs:
-                        add_node_and_features(graph, mention_node_id, data)
+                        graph.AddNode(mention_node_id)
                     i += 1
                 else:
                     mention_node_id = userid_to_node_map[mention_id]
