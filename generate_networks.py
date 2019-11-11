@@ -259,7 +259,7 @@ def analyze_network(
     Loads a network from 'graph_in_path' and prints basic information about the
     network. Samples k edges from the network to visualize using networkx.
     """
-    graph = snap.TNGraph.Load(snap.TFIn(graph_in_path))
+    graph = snap.TNEANet.Load(snap.TFIn(graph_in_path))
     snap.PrintInfo(graph, 'Basic Graph Information', '/dev/stdout', False)
     MxScc = snap.GetMxScc(graph)
     print('Nodes in largest strongly-connected subcomponent: %d' %
