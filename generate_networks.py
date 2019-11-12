@@ -120,7 +120,8 @@ def generate_graphs(dataset_name):
         # Moreover, it's not guaranteed all nodes have features; a node could
         # be the source of a reply/retweet or the target of a mention, but not
         # have any tweets of their own.
-        add_node_features(graph, user_node_id, data)
+        for graph, _ in all_graphs:
+            add_node_features(graph, user_node_id, data)
 
         # Equality checks whether it is NaN or not.
         if reply_id == reply_id:
