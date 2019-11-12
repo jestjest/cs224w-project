@@ -175,7 +175,7 @@ def generate_graphs(dataset_name):
         # Now save the graph.
         path = os.path.join(PROCESSED_GRAPHS_DIR, '%s-%s.graph' % (dataset_name, name))
         fout = snap.TFOut(path)
-        mentions_graph.Save(fout)
+        graph.Save(fout)
         fout.Flush()
 
 
