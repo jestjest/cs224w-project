@@ -81,7 +81,7 @@ def load_hate(features, edges, num_features):
             paper1 = node_map[info[0]]
             paper2 = node_map[info[1]]
             adj_lists[paper1].add(paper2)
-            # adj_lists[paper2].add(paper1)
+            adj_lists[paper2].add(paper1)
 
     print('Label meanings: ', label_map)
     return feat_data, labels, adj_lists
@@ -98,13 +98,9 @@ def run_hate(gcn, features, weights,  edges, flag_index="hate", num_features=320
 
     agg1 = MeanAggregator(features, cuda=False)
     enc1 = Encoder(features, num_features, 256, adj_lists, agg1, gcn=gcn, cuda=False)
-    agg2 = MeanAggregator(lambda nodes: enc1(nodes).t(), cuda=False)
-    enc2 = Encoder(lambda nodes: enc1(nodes).t(), enc1.embed_dim, 256, adj_lists, agg2,
-                   base_model=enc1, gcn=gcn, cuda=False)
     enc1.num_samples = 25
-    enc2.num_samples = 10
 
-    graphsage = SupervisedGraphSage(len(weights), enc2, torch.FloatTensor(weights))
+    graphsage = SupervisedGraphSage(len(weights), enc1, torch.FloatTensor(weights))
 
     if flag_index == "hate":
         df = pd.read_csv("hate/users_anon.csv")
@@ -138,7 +134,7 @@ def run_hate(gcn, features, weights,  edges, flag_index="hate", num_features=320
 
         for batch in range(1000):
             batch_nodes = train[:batch_size]
-            # train = np.roll(train, batch_size)
+            train = np.roll(train, batch_size)
             # random.shuffle(train)
             start_time = time.time()
             optimizer.zero_grad()
@@ -147,7 +143,7 @@ def run_hate(gcn, features, weights,  edges, flag_index="hate", num_features=320
             optimizer.step()
             end_time = time.time()
             times.append(end_time - start_time)
-            cum_loss += loss.data[0]
+            cum_loss += loss.data.item()
             if batch % 50 == 0:
                 val_output = graphsage.forward(test)
                 labels_pred_validation = val_output.data.numpy().argmax(axis=1)
