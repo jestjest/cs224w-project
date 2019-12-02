@@ -13,6 +13,8 @@ import time
 from graphsage.encoders import Encoder
 from graphsage.aggregators import MeanAggregator
 
+NUM_NODES = 100386
+
 
 def performance(y_true, y_pred, name="none", write_flag=False, print_flag=False):
     f1_score(y_true, y_pred, labels=None, pos_label=1, average='binary', sample_weight=None)
@@ -50,10 +52,16 @@ class SupervisedGraphSage(nn.Module):
 
 
 def load_hate(features, edges, num_features):
-    num_nodes = 100386
+    """
+    Returns:
+        NUM_NODES x num_features matrix of features
+        NUM_NODES x 1 matrix of labels (which are printed out)
+        adjacency list of the (directed) edges file (each line being n1 n2 representing n1 -> n2)
+            as a dictionary of n1 to n2.
+    """
     num_feats = num_features
-    feat_data = np.zeros((num_nodes, num_feats))
-    labels = np.empty((num_nodes, 1), dtype=np.int64)
+    feat_data = np.zeros((NUM_NODES, num_feats))
+    labels = np.empty((NUM_NODES, 1), dtype=np.int64)
     node_map = {}
     label_map = {}
 
@@ -73,9 +81,9 @@ def load_hate(features, edges, num_features):
             paper1 = node_map[info[0]]
             paper2 = node_map[info[1]]
             adj_lists[paper1].add(paper2)
-            adj_lists[paper2].add(paper1)
+            # adj_lists[paper2].add(paper1)
 
-    print(label_map)
+    print('Label meanings: ', label_map)
     return feat_data, labels, adj_lists
 
 
@@ -84,9 +92,8 @@ def run_hate(gcn, features, weights,  edges, flag_index="hate", num_features=320
     torch.manual_seed(1)
     np.random.seed(1)
     random.seed(1)
-    num_nodes = 100386
     feat_data, labels, adj_lists = load_hate(features, edges, num_features)
-    features = nn.Embedding(num_nodes, num_features)
+    features = nn.Embedding(NUM_NODES, num_features)
     features.weight = nn.Parameter(torch.FloatTensor(feat_data), requires_grad=False)
 
     agg1 = MeanAggregator(features, cuda=False)
@@ -131,7 +138,7 @@ def run_hate(gcn, features, weights,  edges, flag_index="hate", num_features=320
 
         for batch in range(1000):
             batch_nodes = train[:batch_size]
-            train = np.roll(train, batch_size)
+            # train = np.roll(train, batch_size)
             # random.shuffle(train)
             start_time = time.time()
             optimizer.zero_grad()
