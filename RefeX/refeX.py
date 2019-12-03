@@ -225,9 +225,10 @@ class RecursiveExtractor:
         state_printer("The number of extracted features is: " + str(self.features.shape[1]) + ".")
         
     
-
+"""
 args={"input":"iran_201901_1_tweets_csv_hashed_1.csv",
       "recursive_features_output": "features_iran_201901_1_tweets_csv_hashed_1",
       "recursive_iterations": 2,
       "aggregator": "complex",
       "pruning_cutoff": 0.5}
+"""
