@@ -36,6 +36,7 @@ class Encoder(nn.BatchNorm1d):
 
         nodes     -- list of nodes
         """
+        # neigh_feats [num_nodes, feature_dim]
         neigh_feats = self.aggregator.forward(nodes, [self.adj_lists[node] for node in nodes], 
                 self.num_sample)
         if not self.gcn:
@@ -46,5 +47,9 @@ class Encoder(nn.BatchNorm1d):
             combined = torch.cat([self_feats, neigh_feats], dim=1)
         else:
             combined = neigh_feats
+
+        # weight [embed_dim, feature_dim]
+        # combined [num_nodes, feature_dim]
         combined = F.relu(self.weight.mm(combined.t()))
+        # combined [embed_dim, num_nodes]
         return combined
