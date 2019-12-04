@@ -80,15 +80,17 @@ def load_hate(features='hate/users_hate_all.content', edges='hate/users.edges', 
                     label_map[info[-1]] = len(label_map)
                 labels[i] = label_map[info[-1]]
 
-        edge_list = list()
+        edge_src = []
+        edge_dst = []
         with open(edges) as fp:
             for i, line in enumerate(fp):
                 info = line.strip().split()
                 paper1 = node_map[info[0]]
                 paper2 = node_map[info[1]]
-                edge_list.append([paper1, paper2])
+                edge_src.append(paper1)
+                edge_dst.append(paper2)
 
-        edge_tensor = torch.tensor(edge_list, dtype=torch.long)
+        edge_tensor = torch.tensor([edge_src, edge_dst], dtype=torch.long)
         labels = labels.squeeze()
         print('Label meanings: ', label_map)
         torch.save(feat_data, features + '.tensor')
