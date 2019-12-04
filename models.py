@@ -6,7 +6,7 @@ import torch_geometric.nn as pyg_nn
 import torch_geometric.utils as pyg_utils
 
 class GNNStack(torch.nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, args, task='node'):
+    def __init__(self, input_dim, hidden_dim, output_dim, args, weights):
         super(GNNStack, self).__init__()
         conv_model = self.build_conv_model(args.model_type)
         self.convs = nn.ModuleList()
@@ -20,12 +20,9 @@ class GNNStack(torch.nn.Module):
             nn.Linear(hidden_dim, hidden_dim), nn.Dropout(args.dropout),
             nn.Linear(hidden_dim, output_dim))
 
-        self.task = task
-        if not (self.task == 'node' or self.task == 'graph'):
-            raise RuntimeError('Unknown task.')
-
         self.dropout = args.dropout
         self.num_layers = args.num_layers
+        self.weights = weights
 
     def build_conv_model(self, model_type):
         if model_type == 'GCN':
@@ -41,14 +38,12 @@ class GNNStack(torch.nn.Module):
             conv_out = self.convs[i](x, edge_index)
             relu_out = F.relu(conv_out)
             x = F.dropout(relu_out, p=self.dropout, training=self.training)
-        if self.task == 'graph':
-            x = pyg_nn.global_max_pool(x, batch)
         x = self.post_mp(x)
 
         return F.log_softmax(x, dim=1)
 
     def loss(self, pred, label):
-        return F.nll_loss(pred, label)
+        return F.nll_loss(pred, label, weight=self.weights)
 
 
 class GraphSage(pyg_nn.MessagePassing):
