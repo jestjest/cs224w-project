@@ -39,6 +39,11 @@ class GNNStack(torch.nn.Module):
             return pyg_nn.GatedGraphConv(output_dim, 2)
         elif args.model_type == 'ARMA':
             return pyg_nn.ARMAConv(input_dim, output_dim, num_stacks=3, num_layers=2, dropout=args.dropout)
+        # Warning, high memory requirements.
+        elif args.model_type == 'AGNN':
+            return pyg_nn.AGNNConv()
+        elif args.model_type == 'TAG':
+            return pyg_nn.TAGConv(input_dim, output_dim, K=3)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
