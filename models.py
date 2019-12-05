@@ -14,10 +14,10 @@ class GNNStack(torch.nn.Module):
             hidden_dim = input_dim + 16
 
         self.convs = nn.ModuleList()
-        self.convs.append(self.build_layer(args.model_type, input_dim, hidden_dim))
+        self.convs.append(self.build_layer(args, input_dim, hidden_dim))
         assert (args.num_layers >= 1), 'Number of layers is not >=1'
         for l in range(args.num_layers-1):
-            self.convs.append(self.build_layer(args.model_type, hidden_dim, hidden_dim))
+            self.convs.append(self.build_layer(args, hidden_dim, hidden_dim))
 
         # post-message-passing
         self.post_mp = nn.Sequential(
@@ -28,15 +28,17 @@ class GNNStack(torch.nn.Module):
         self.num_layers = args.num_layers
         self.weights = weights
 
-    def build_layer(self, model_type, input_dim, hidden_dim):
-        if model_type == 'GCN':
-            return pyg_nn.GCNConv(input_dim, hidden_dim)
-        elif model_type == 'GraphSage':
-            return GraphSage(input_dim, hidden_dim)
-        elif model_type == 'GAT':
-            return GAT(input_dim, hidden_dim)
-        elif model_type == 'Gate':
-            return pyg_nn.GatedGraphConv(hidden_dim, 2)
+    def build_layer(self, args, input_dim, output_dim):
+        if args.model_type == 'GCN':
+            return pyg_nn.GCNConv(input_dim, output_dim)
+        elif args.model_type == 'GraphSage':
+            return GraphSage(input_dim, output_dim)
+        elif args.model_type == 'GAT':
+            return GAT(input_dim, output_dim)
+        elif args.model_type == 'Gate':
+            return pyg_nn.GatedGraphConv(output_dim, 2)
+        elif args.model_type == 'ARMA':
+            return pyg_nn.ARMAConv(input_dim, output_dim, num_stacks=3, num_layers=2, dropout=args.dropout)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
