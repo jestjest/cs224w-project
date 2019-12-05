@@ -19,9 +19,14 @@ class GNNStack(torch.nn.Module):
         for l in range(args.num_layers-1):
             self.convs.append(self.build_layer(args, hidden_dim, hidden_dim))
 
+        # Special case for AGGN and APPNP, where the output_dim of conv is the input_dim
+        post_conv_dim = hidden_dim
+        if args.model_type == 'AGNN' or args.model_type == 'APPNP':
+            post_conv_dim = input_dim
+
         # post-message-passing
         self.post_mp = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim), nn.Dropout(args.dropout),
+            nn.Linear(post_conv_dim, hidden_dim), nn.Dropout(args.dropout),
             nn.Linear(hidden_dim, output_dim))
 
         self.dropout = args.dropout
@@ -44,6 +49,8 @@ class GNNStack(torch.nn.Module):
             return pyg_nn.AGNNConv()
         elif args.model_type == 'TAG':
             return pyg_nn.TAGConv(input_dim, output_dim, K=3)
+        elif args.model_type == 'APPNP':
+            return pyg_nn.APPNP(K=10, alpha=0.1)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
