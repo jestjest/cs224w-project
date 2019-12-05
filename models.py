@@ -87,11 +87,11 @@ class GAT(pyg_nn.MessagePassing):
         self.concat = concat
         self.dropout = dropout
         self.lin = nn.Linear(in_channels, num_heads * out_channels)
-        self.att = nn.Parameter(torch.Tensor(1, num_heads, 2 * out_channels))
+        self.att = nn.Parameter(torch.empty([1, num_heads, 2 * out_channels]))
         if bias and concat:
-            self.bias = nn.Parameter(torch.Tensor(self.heads * out_channels))
+            self.bias = nn.Parameter(torch.empty([self.heads * out_channels]))
         elif bias and not concat:
-            self.bias = nn.Parameter(torch.Tensor(out_channels))
+            self.bias = nn.Parameter(torch.empty([out_channels]))
         else:
             self.register_parameter('bias', None)
         nn.init.xavier_uniform_(self.att)

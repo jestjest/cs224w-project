@@ -20,6 +20,7 @@ import random
 import models
 
 NUM_NODES = 100386
+dev = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # ==============================================================================
 # Utils
@@ -61,15 +62,15 @@ def load_hate(features='hate/users_hate_all.content', edges='hate/users.edges', 
                     as a dictionary of n1 to n2.
     """
     num_feats = num_features
-    feat_data = torch.zeros((NUM_NODES, num_feats))
-    labels = torch.empty((NUM_NODES, 1), dtype=torch.long)
+    feat_data = torch.zeros((NUM_NODES, num_feats), device=dev)
+    labels = torch.empty((NUM_NODES, 1), dtype=torch.long, device=dev)
     node_map = {}
     label_map = {}
 
     if os.path.exists(features + '.tensor'):
-        feat_data = torch.load(features + '.tensor')
-        labels = torch.load(features + '.labels.tensor')
-        edge_tensor = torch.load(edges + '.tensor')
+        feat_data = torch.load(features + '.tensor', map_location=dev)
+        labels = torch.load(features + '.labels.tensor', map_location=dev)
+        edge_tensor = torch.load(edges + '.tensor', map_location=dev)
     else:
         with open(features) as fp:
             for i, line in enumerate(fp):
@@ -90,7 +91,7 @@ def load_hate(features='hate/users_hate_all.content', edges='hate/users.edges', 
                 edge_src.append(paper1)
                 edge_dst.append(paper2)
 
-        edge_tensor = torch.tensor([edge_src, edge_dst], dtype=torch.long)
+        edge_tensor = torch.tensor([edge_src, edge_dst], dtype=torch.long, device=dev)
         labels = labels.squeeze()
         print('Label meanings: ', label_map)
         torch.save(feat_data, features + '.tensor')
@@ -122,7 +123,7 @@ def get_stratified_batches():
 
     # Assuming train-test ratio of 0.8
     skf = StratifiedShuffleSplit(
-        n_splits=10, test_size=0.2, train_size=0.8, random_state=123)
+            n_splits=10, test_size=0.2, train_size=0.8, random_state=123)
     #skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=123)
     return skf, x, y
 
@@ -180,8 +181,8 @@ def train(dataset, args):
         args.hidden_dim,  # args.hidden_dim
         3,  # dataset.num_classes
         args,
-        torch.tensor([1, 0, 15]).float()    # weights for each class
-    )
+        torch.tensor([1, 0, 15], device=dev).float()    # weights for each class
+    ).cuda(dev)
     scheduler, opt = build_optimizer(args, model.parameters())
     skf, x, y = get_stratified_batches()
 
@@ -246,7 +247,7 @@ def test(dataset, model, test_indices):
     pred = pred[test_indices]
     label = dataset.y[test_indices]
 
-    probs_score = probs.data.numpy()[:, 2].flatten() - probs.data.numpy()[:, 0].flatten()
+    probs_score = probs.data.cpu().numpy()[:, 2].flatten() - probs.data.cpu().numpy()[:, 0].flatten()
     labels_true_test = label.flatten()
     y_true = [1 if v == 2 else 0 for v in labels_true_test]
     fpr, tpr, _ = roc_curve(y_true, probs_score)
