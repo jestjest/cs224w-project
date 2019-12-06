@@ -5,6 +5,7 @@
 #
 
 import argparse
+from logger_utils import Logger
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
@@ -25,8 +26,6 @@ dev = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 # ==============================================================================
 # Utils
 # ==============================================================================
-
-
 def local_arg_parse():
     opt_parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -40,8 +39,10 @@ def local_arg_parse():
                             help='Gradient clipping.')
     opt_parser.add_argument('--batch_size', type=int, default=32)
     opt_parser.add_argument('--hidden_dim', type=int, default=32)
-    opt_parser.add_argument('--model_type', type=str, default='GraphSage')
-    opt_parser.add_argument('--num_layers', type=int, default=2)
+    # opt_parser.add_argument('--model_type', type=str, default='GraphSage')
+    opt_parser.add_argument('--model_type', type=str, default='GCN')
+    # opt_parser.add_argument('--num_layers', type=int, default=2)
+    opt_parser.add_argument('--num_layers', type=int, default=1)
     opt_parser.add_argument('--dropout', type=float, default=0.5)
     opt_parser.add_argument('--epochs', type=int, default=500)
     opt_parser.add_argument('--weight_decay', type=float, default=5e-3)
@@ -175,6 +176,15 @@ def train(dataset, args):
     np.random.seed(1)
     random.seed(1)
 
+    metrics = [
+        'total_loss',
+        'acc',
+        'f1',
+        'auc',
+        'recall'
+    ]
+    logger = Logger(model=args.model_type)
+
     # build model
     model = models.GNNStack(
         320,  # dataset.num_node_features
@@ -182,7 +192,7 @@ def train(dataset, args):
         3,  # dataset.num_classes
         args,
         torch.tensor([1, 0, 15], device=dev).float()    # weights for each class
-    ).cuda(dev)
+    ) #.cuda(dev)
     scheduler, opt = build_optimizer(args, model.parameters())
     skf, x, y = get_stratified_batches()
 
@@ -221,16 +231,26 @@ def train(dataset, args):
         f1s = np.array(f1s)
         aucs = np.array(aucs)
         recalls = np.array(recalls)
-        print('Epoch ', epoch)
-        print('\tLoss: ', total_loss)
-        print('\tACC: %0.4f +- %0.4f' %
-                (accs.mean(), accs.std()))
-        print('\tF1: %0.4f +- %0.4f' %
-                (f1s.mean(), f1s.std()))
-        print('\tAUC: %0.4f +- %0.4f' %
-                (aucs.mean(), aucs.std()))
-        print('\tRecall: %0.4f +- %0.4f' %
-                (recalls.mean(), recalls.std()))
+        log_metrics = {
+            'total_loss': total_loss,
+            'acc': accs,
+            'f1': f1s,
+            'auc': aucs,
+            'recall': recalls
+        }
+
+        logger.log(log_metrics, epoch)
+        if epoch % 5 == 0:
+            logger.display_status(
+                epoch,
+                args.epochs,
+                total_loss,
+                accs,
+                f1s,
+                aucs,
+                recalls
+            )
+    logger.close()
 
 
 def test(dataset, model, test_indices):
