@@ -13,27 +13,41 @@ TensorBoard Data will be stored in './runs' path
 
 
 class Logger:
-    def __init__(self, model_name):
+    def __init__(self, model):
         """
         @Param model_name (str): name of the model
         """
-        self.model_name = model_name
-
-        # TensorBoard
-        self.writer = SummaryWriter(comment=self.model_name)
+        self.writer = SummaryWriter(comment=model)
+        # self.writer_dict = {metric: SummaryWriter(comment=metric) for metric in metrics}
 
 
     def log(self, metrics, epoch):
         """
-        @Param metrics map(str -> ?): names of the metrics to be logged to
-            values of metrics to be logged
-        @Param epoch (int): epoch for which the values are being logged
-
-        Logs metric values associated with metric names for epoch epoch
         """
         for metric_name, metric_val in metrics.items():
-            self.writer.add_scalar(
-                '{}/{}'.format(self.model_name, metric_name), metric_val, epoch)
+            if isinstance(metric_val, float):
+                self.writer.add_scalar(
+                    '%s' % (metric_name), metric_val, epoch
+                )
+            else:
+                self.writer.add_scalar(
+                    '%s/mean' % (metric_name), metric_val.mean(), epoch
+                )
+                self.writer.add_scalar(
+                    '%s/std' % (metric_name), metric_val.std(), epoch
+                )
+        # for metric_name, metric_val in metrics.items():
+        #     if isinstance(metric_val, float):
+        #         self.writer_dict[metric_name].add_scalar(
+        #             '%s/%s' % (metric_name, model_name), metric_val, epoch
+        #         )
+        #     else:
+        #         self.writer_dict[metric_name].add_scalar(
+        #             '%s/%s/mean' % (metric_name, model_name), metric_val.mean(), epoch
+        #         )
+        #         self.writer_dict[metric_name].add_scalar(
+        #             '%s/%s/std' % (metric_name, model_name), metric_val.std(), epoch
+        #         )
 
 
     def display_status(self, epoch, num_epochs, total_loss, accs, f1s, aucs, recalls):

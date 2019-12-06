@@ -39,8 +39,10 @@ def local_arg_parse():
                             help='Gradient clipping.')
     opt_parser.add_argument('--batch_size', type=int, default=32)
     opt_parser.add_argument('--hidden_dim', type=int, default=32)
-    opt_parser.add_argument('--model_type', type=str, default='GraphSage')
-    opt_parser.add_argument('--num_layers', type=int, default=2)
+    # opt_parser.add_argument('--model_type', type=str, default='GraphSage')
+    opt_parser.add_argument('--model_type', type=str, default='GCN')
+    # opt_parser.add_argument('--num_layers', type=int, default=2)
+    opt_parser.add_argument('--num_layers', type=int, default=1)
     opt_parser.add_argument('--dropout', type=float, default=0.5)
     opt_parser.add_argument('--epochs', type=int, default=500)
     opt_parser.add_argument('--weight_decay', type=float, default=5e-3)
@@ -174,7 +176,14 @@ def train(dataset, args):
     np.random.seed(1)
     random.seed(1)
 
-    logger = Logger(model_name=args.model_type)
+    metrics = [
+        'total_loss',
+        'acc',
+        'f1',
+        'auc',
+        'recall'
+    ]
+    logger = Logger(model=args.model_type)
 
     # build model
     model = models.GNNStack(
@@ -224,14 +233,10 @@ def train(dataset, args):
         recalls = np.array(recalls)
         log_metrics = {
             'total_loss': total_loss,
-            'acc_mean': accs.mean(),
-            'acc_std': accs.std(),
-            'f1_mean': f1s.mean(),
-            'f1_std': f1s.std(),
-            'auc_mean': aucs.mean(),
-            'auc_std': aucs.mean(),
-            'recall_mean': recalls.mean(),
-            'recall_std': recalls.std()
+            'acc': accs,
+            'f1': f1s,
+            'auc': aucs,
+            'recall': recalls
         }
 
         logger.log(log_metrics, epoch)
