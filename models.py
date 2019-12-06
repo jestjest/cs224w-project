@@ -51,6 +51,8 @@ class GNNStack(torch.nn.Module):
             return pyg_nn.TAGConv(input_dim, output_dim, K=3)
         elif args.model_type == 'APPNP':
             return pyg_nn.APPNP(K=10, alpha=0.1)
+        elif args.model_type == 'Feast':
+            return pyg_nn.FeaStConv(input_dim, output_dim, heads=3)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
