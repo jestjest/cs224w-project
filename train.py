@@ -190,7 +190,10 @@ def train(dataset, args):
         3,  # dataset.num_classes
         args,
         torch.tensor([1, 0, 15], device=dev).float()    # weights for each class
-    ) #.cuda(dev)
+    )
+    if torch.cuda.is_available():
+        model = model.cuda(dev)
+
     scheduler, opt = build_optimizer(args, model.parameters())
     skf, x, y = get_stratified_batches()
 
