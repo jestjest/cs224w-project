@@ -121,9 +121,9 @@ def get_stratified_batches():
         del df, df2, df3
 
     # Assuming train-test ratio of 0.8
-    skf = StratifiedShuffleSplit(
-            n_splits=10, test_size=0.2, train_size=0.8, random_state=123)
-    #skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=123)
+    #skf = StratifiedShuffleSplit(
+    #        n_splits=10, test_size=0.2, train_size=0.8, random_state=123)
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=123)
     return skf, x, y
 
 
