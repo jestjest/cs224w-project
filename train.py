@@ -21,6 +21,8 @@ import random
 import models
 
 NUM_NODES = 100386
+NUM_FEATURES = 320
+NUM_ROLX_FEATURES = 44
 dev = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # ==============================================================================
@@ -47,29 +49,39 @@ def local_arg_parse():
     opt_parser.add_argument('--lr', type=float, default=0.01)
     opt_parser.add_argument('--opt', type=str, default='adam')
     opt_parser.add_argument('--opt_scheduler', type=str, default='none')
-    opt_parser.add_argument('--flag_index', type=str, default='hate')
+
+    opt_parser.add_argument('--use_refex', action='store_true')
     args = opt_parser.parse_args()
     return args
 
 
-def load_hate(features='hate/users_hate_all.content', edges='hate/users.edges', num_features=320):
+def load_hate(
+        args,
+        datadir='hate',
+        features='users_hate_all.content',
+        edges='users.edges',
+        features_rolx='../data/features_refex_normalized.csv'):
     """
     Returns:
-            NUM_NODES x num_features matrix of features
+            NUM_NODES x num_feates matrix of features
             NUM_NODES x 1 matrix of labels (which are printed out)
             adjacency list of the (directed) edges file (each line being n1 n2 representing n1 -> n2)
                     as a dictionary of n1 to n2.
     """
-    num_feats = num_features
+    num_feats = NUM_FEATURES if not args.use_refex else NUM_FEATURES + NUM_ROLX_FEATURES
     feat_data = torch.zeros((NUM_NODES, num_feats), device=dev)
     labels = torch.empty((NUM_NODES, 1), dtype=torch.long, device=dev)
     node_map = {}
     label_map = {}
 
-    if os.path.exists(features + '.tensor'):
-        feat_data = torch.load(features + '.tensor', map_location=dev)
-        labels = torch.load(features + '.labels.tensor', map_location=dev)
-        edge_tensor = torch.load(edges + '.tensor', map_location=dev)
+    features_tensor_path = os.path.join(datadir, features + '.tensor')
+    labels_tensor_path = os.path.join(datadir, features + '.labels.tensor')
+    edges_tensor_path = os.path.join(datadir, edges + '.tensor')
+
+    if os.path.exists(features_tensor_path):
+        feat_data = torch.load(features_tensor_path, map_location=dev)
+        labels = torch.load(labels_tensor_path, map_location=dev)
+        edge_tensor = torch.load(edges_tensor_path, map_location=dev)
     else:
         with open(features) as fp:
             for i, line in enumerate(fp):
@@ -79,6 +91,11 @@ def load_hate(features='hate/users_hate_all.content', edges='hate/users.edges', 
                 if not info[-1] in label_map:
                     label_map[info[-1]] = len(label_map)
                 labels[i] = label_map[info[-1]]
+
+        if args.use_refex:
+            feat_refex = pd.read_csv(features_rolx)
+            for i in range(1, len(feat_refex)):
+                feat_data[i, num_features:] = torch.tensor(feat_refex.iloc[i].values[1:])
 
         edge_src = []
         edge_dst = []
@@ -93,32 +110,21 @@ def load_hate(features='hate/users_hate_all.content', edges='hate/users.edges', 
         edge_tensor = torch.tensor([edge_src, edge_dst], dtype=torch.long, device=dev)
         labels = labels.squeeze()
         print('Label meanings: ', label_map)
-        torch.save(feat_data, features + '.tensor')
-        torch.save(labels, features + '.labels.tensor')
-        torch.save(edge_tensor, edges + '.tensor')
+        torch.save(feat_data, features_tensor_path)
+        torch.save(labels, labels_tensor_path)
+        torch.save(edge_tensor, edges_tensor_path)
         print('Saved parsed tensors for next run.')
 
     return feat_data, labels, edge_tensor
 
 
 def get_stratified_batches():
-    if args.flag_index == "hate":
-        df = pd.read_csv("hate/users_anon.csv")
-        df = df[df.hate != "other"]
-        y = torch.tensor(
-            [1 if v == "hateful" else 0 for v in df["hate"].values])
-        x = torch.tensor(df["user_id"].values)
-        del df
-
-    else:
-        df = pd.read_csv("suspended/users_anon.csv")
-        np.random.seed(321)
-        df2 = df[df["is_63_2"] == True].sample(668, axis=0)
-        df3 = df[df["is_63_2"] == False].sample(5405, axis=0)
-        df = pd.concat([df2, df3])
-        y = torch.tensor([1 if v else 0 for v in df["is_63_2"].values])
-        x = torch.tensor(df["user_id"].values)
-        del df, df2, df3
+    df = pd.read_csv("hate/users_anon.csv")
+    df = df[df.hate != "other"]
+    y = torch.tensor(
+        [1 if v == "hateful" else 0 for v in df["hate"].values])
+    x = torch.tensor(df["user_id"].values)
+    del df
 
     # Assuming train-test ratio of 0.8
     #skf = StratifiedShuffleSplit(
@@ -127,12 +133,13 @@ def get_stratified_batches():
     return skf, x, y
 
 
-def get_datasets():
+def get_datasets(args):
     """
     Gets the dataset for hateful Twitter users
     """
     # mask not multiple datasets
-    feat_data, labels, edges = load_hate()
+    datadir = 'hate_with_refex' if args.use_refex else 'hate'
+    feat_data, labels, edges = load_hate(args, datadir)
 
     dataset = pyg_d.Data(x=feat_data, edge_index=edges,
                          y=labels, batch=feat_data[:, 0])
@@ -289,5 +296,5 @@ def test(dataset, model, test_indices):
 if __name__ == "__main__":
     args = local_arg_parse()
 
-    dataset = get_datasets()
+    dataset = get_datasets(args)
     train(dataset, args)
