@@ -181,19 +181,13 @@ def train(dataset, args):
     np.random.seed(1)
     random.seed(1)
 
-    metrics = [
-        'total_loss',
-        'acc',
-        'f1',
-        'auc',
-        'recall'
-    ]
     logger = Logger(model=args.model_type)
 
     # build model
+    num_feats = NUM_FEATURES if not args.use_refex else NUM_FEATURES + NUM_ROLX_FEATURES
     model = models.GNNStack(
-        320,  # dataset.num_node_features
-        args.hidden_dim,  # args.hidden_dim
+        num_feats,
+        args.hidden_dim,
         3,  # dataset.num_classes
         args,
         torch.tensor([1, 0, 15], device=dev).float()    # weights for each class
@@ -205,7 +199,6 @@ def train(dataset, args):
     skf, x, y = get_stratified_batches()
 
     # train
-    validation_accuracy = list()
     for epoch in range(args.epochs):
         total_loss = 0
         accs, f1s, aucs, recalls = [], [], [], []
