@@ -41,7 +41,7 @@ class GNNStack(torch.nn.Module):
         elif args.model_type == 'GAT':
             return GAT(input_dim, output_dim)
         elif args.model_type == 'Gate':
-            return pyg_nn.GatedGraphConv(output_dim, 2)
+            return pyg_nn.GatedGraphConv(output_dim, 3)
         elif args.model_type == 'ARMA':
             return pyg_nn.ARMAConv(input_dim, output_dim, num_stacks=3, num_layers=2, dropout=args.dropout)
         # Warning, high memory requirements.
