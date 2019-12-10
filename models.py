@@ -14,15 +14,19 @@ class GNNStack(torch.nn.Module):
             hidden_dim = input_dim + 16
 
         self.convs = nn.ModuleList()
-        self.convs.append(self.build_layer(args, input_dim, hidden_dim))
+        self.convs.append(self.build_layer(args, input_dim, hidden_dim, 0))
+
         assert (args.num_layers >= 1), 'Number of layers is not >=1'
         for l in range(args.num_layers-1):
-            self.convs.append(self.build_layer(args, hidden_dim, hidden_dim))
+            self.convs.append(self.build_layer(args, hidden_dim, hidden_dim, l+1))
 
-        # Special case for AGGN and APPNP, where the output_dim of conv is the input_dim
         post_conv_dim = hidden_dim
+        # Special case for AGGN and APPNP, where the output_dim of conv is the input_dim
         if args.model_type == 'AGNN' or args.model_type == 'APPNP':
             post_conv_dim = input_dim
+        # Special case for GAT with multiple heads.
+        if args.model_type == 'GAT':
+            post_conv_dim = hidden_dim * 3
 
         # post-message-passing
         self.post_mp = nn.Sequential(
@@ -33,13 +37,15 @@ class GNNStack(torch.nn.Module):
         self.num_layers = args.num_layers
         self.weights = weights
 
-    def build_layer(self, args, input_dim, output_dim):
+    def build_layer(self, args, input_dim, output_dim, layer_num):
         if args.model_type == 'GCN':
             return pyg_nn.GCNConv(input_dim, output_dim)
         elif args.model_type == 'GraphSage':
             return GraphSage(input_dim, output_dim)
         elif args.model_type == 'GAT':
-            return GAT(input_dim, output_dim)
+            if layer_num > 0:
+                input_dim = input_dim * 3
+            return pyg_nn.GATConv(input_dim, output_dim, heads=3, dropout=args.dropout)
         elif args.model_type == 'Gate':
             return pyg_nn.GatedGraphConv(output_dim, 3)
         elif args.model_type == 'ARMA':
